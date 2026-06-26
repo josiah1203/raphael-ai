@@ -3,58 +3,54 @@
 from __future__ import annotations
 
 import os
-import sqlite3
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from raphael_ai.calliope_ai.job_store import AIJobStore
+
 router = APIRouter(tags=["ai"])
-_db = Path(os.environ.get("RAPHAEL_AI_DB", "/tmp/raphael-ai.db"))
-_conn = sqlite3.connect(_db, check_same_thread=False)
-_conn.execute(
-    """CREATE TABLE IF NOT EXISTS jobs (
-        id TEXT PRIMARY KEY,
-        job_type TEXT NOT NULL,
-        status TEXT NOT NULL,
-        module_id TEXT,
-        created_at TEXT NOT NULL
-    )"""
-)
-_conn.commit()
+_raw = os.environ.get("RAPHAEL_AI_DB", "").strip()
+_db = Path(_raw) if _raw else None
+_store = AIJobStore(db_path=_db)
 
 
 @router.get("/jobs")
-def list_jobs() -> dict[str, list]:
-    rows = _conn.execute("SELECT id, job_type, status, module_id, created_at FROM jobs ORDER BY created_at DESC").fetchall()
-    return {"jobs": [{"id": r[0], "job_type": r[1], "status": r[2], "module_id": r[3], "created_at": r[4]} for r in rows]}
+def list_jobs(tenant_id: str | None = None) -> dict[str, list]:
+    return {"jobs": _store.list_jobs(tenant_id=tenant_id)}
 
 
 @router.post("/jobs")
 def create_job(body: dict[str, Any]) -> dict[str, Any]:
-    jid = f"job-{int(datetime.now(timezone.utc).timestamp())}"
-    now = datetime.now(timezone.utc).isoformat()
-    _conn.execute(
-        "INSERT INTO jobs (id, job_type, status, module_id, created_at) VALUES (?, ?, 'queued', ?, ?)",
-        (jid, body.get("job_type", "copilot"), body.get("module_id"), now),
+    extra: dict[str, Any] = {}
+    if body.get("module_id"):
+        extra["module_id"] = body["module_id"]
+    return _store.create_job(
+        tenant_id=body.get("tenant_id", "default"),
+        model_type=body.get("job_type", body.get("model_type", "lora")),
+        status=body.get("status", "pending"),
+        metrics=body.get("metrics"),
+        extra=extra or None,
     )
-    _conn.commit()
-    return {"id": jid, "status": "queued", "created_at": now}
 
 
 @router.get("/jobs/{job_id}")
 def get_job(job_id: str) -> dict[str, Any]:
-    row = _conn.execute("SELECT id, job_type, status, module_id, created_at FROM jobs WHERE id = ?", (job_id,)).fetchone()
-    if not row:
+    job = _store.get_job(job_id)
+    if not job:
         raise HTTPException(404, detail="not_found")
-    return {"id": row[0], "job_type": row[1], "status": row[2], "module_id": row[3], "created_at": row[4]}
+    return job
 
 
 @router.get("/suggestions")
 def suggestions(module_id: str | None = None) -> dict[str, list]:
     return {
         "suggestions": [
-            {"id": "s1", "text": "Review USB-PD input stage net lengths", "module_id": module_id or "power-board-v2"},
+            {
+                "id": "s1",
+                "text": "Review USB-PD input stage net lengths",
+                "module_id": module_id or "power-board-v2",
+            }
         ]
     }
