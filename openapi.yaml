@@ -1,0 +1,12 @@
+openapi: 3.1.0
+info:
+  title: raphael-ai
+  version: 0.1.0
+  description: AI understanding, copilot, agents, workflow generation
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
