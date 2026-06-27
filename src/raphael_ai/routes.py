@@ -1,4 +1,4 @@
-"""AI jobs and suggestions API."""
+"""AI jobs API (federated training) + legacy suggestions alias."""
 
 from __future__ import annotations
 
@@ -45,6 +45,7 @@ def get_job(job_id: str) -> dict[str, Any]:
 
 @router.get("/suggestions")
 def suggestions(module_id: str | None = None) -> dict[str, list]:
+    """Legacy alias — prefer /v1/intelligence/suggestions."""
     return {
         "suggestions": [
             {
