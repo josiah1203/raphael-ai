@@ -55,3 +55,11 @@ def suggestions(module_id: str | None = None) -> dict[str, list]:
             }
         ]
     }
+
+
+@router.get("/bundles/export")
+def export_bundle(tenant_id: str = "default") -> dict[str, Any]:
+    from raphael_ai.calliope_ai.training import FederatedTrainer
+
+    trainer = FederatedTrainer()
+    return trainer.export_offline_bundle(tenant_id)
